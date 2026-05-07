@@ -20,7 +20,7 @@ final class MenuController: NSObject {
     private let ambientSlider = NSSlider(value: 10, minValue: 1, maxValue: 20, target: nil, action: #selector(ambientLevelChanged(_:)))
     private let levelLabel = NSTextField(labelWithString: "Ambient Level")
     private let levelValueLabel = NSTextField(labelWithString: "10")
-    private let ambientLevelView = NSView(frame: NSRect(x: 0, y: 0, width: 330, height: 54))
+    private let ambientLevelView = NSView(frame: NSRect(x: 0, y: 0, width: 330, height: 50))
 
     init(client: SonyBluetoothClient) {
         self.client = client
@@ -91,7 +91,7 @@ final class MenuController: NSObject {
         volumeValueLabel.alignment = .right
         volumeValueLabel.frame = NSRect(x: 250, y: 27, width: 60, height: 18)
 
-        volumeSlider.frame = NSRect(x: 16, y: 4, width: 298, height: 24)
+        volumeSlider.frame = NSRect(x: 18, y: 4, width: 292, height: 24)
         volumeSlider.target = self
         volumeSlider.numberOfTickMarks = 11
         volumeSlider.allowsTickMarkValuesOnly = false
@@ -107,14 +107,14 @@ final class MenuController: NSObject {
     private func makeSliderMenuItem() -> NSMenuItem {
         levelLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         levelLabel.textColor = .secondaryLabelColor
-        levelLabel.frame = NSRect(x: 16, y: 30, width: 190, height: 18)
+        levelLabel.frame = NSRect(x: 16, y: 27, width: 190, height: 18)
 
         levelValueLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         levelValueLabel.textColor = .secondaryLabelColor
         levelValueLabel.alignment = .right
-        levelValueLabel.frame = NSRect(x: 250, y: 30, width: 60, height: 18)
+        levelValueLabel.frame = NSRect(x: 250, y: 27, width: 60, height: 18)
 
-        ambientSlider.frame = NSRect(x: 16, y: 3, width: 298, height: 24)
+        ambientSlider.frame = NSRect(x: 18, y: 4, width: 292, height: 24)
         ambientSlider.target = self
         ambientSlider.numberOfTickMarks = 20
         ambientSlider.allowsTickMarkValuesOnly = true
