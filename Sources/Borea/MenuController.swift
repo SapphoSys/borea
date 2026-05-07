@@ -6,16 +6,18 @@ final class MenuController: NSObject {
     private let menu = NSMenu()
 
     private let statusHeaderView = StatusHeaderView()
-    private let connectionItem = NSMenuItem(title: "Connect", action: #selector(toggleConnection), keyEquivalent: "c")
     private let focusOnVoiceItem = NSMenuItem(title: "Focus on Voice", action: #selector(toggleFocusOnVoice), keyEquivalent: "v")
 
     private let modePickerView = ModePickerView()
-    private let bottomSeparatorItem = NSMenuItem.separator()
+    private let ambientTopSeparatorItem = NSMenuItem.separator()
+    private let ambientBottomSeparatorItem = NSMenuItem.separator()
+    private let volumeSeparatorItem = NSMenuItem.separator()
     private let ambientLevelItem = NSMenuItem()
+    private let focusOnVoiceItemView = NSMenuItem()
     private let volumeSlider = NSSlider(value: 50, minValue: 0, maxValue: 100, target: nil, action: #selector(volumeChanged(_:)))
     private let volumeLabel = NSTextField(labelWithString: "Volume")
     private let volumeValueLabel = NSTextField(labelWithString: "50")
-    private let volumeView = NSView(frame: NSRect(x: 0, y: 0, width: 330, height: 54))
+    private let volumeView = NSView(frame: NSRect(x: 0, y: 0, width: 330, height: 50))
     private let ambientSlider = NSSlider(value: 10, minValue: 1, maxValue: 20, target: nil, action: #selector(ambientLevelChanged(_:)))
     private let levelLabel = NSTextField(labelWithString: "Ambient Level")
     private let levelValueLabel = NSTextField(labelWithString: "10")
@@ -51,20 +53,22 @@ final class MenuController: NSObject {
     }
 
     private func configureMenu() {
-        connectionItem.target = self
+        statusHeaderView.onToggle = { [weak self] in
+            self?.toggleConnection()
+        }
         modePickerView.delegate = self
         focusOnVoiceView.target = self
         focusOnVoiceView.action = #selector(toggleFocusOnVoice)
 
         menu.addItem(makeStatusHeaderMenuItem())
-        menu.addItem(connectionItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeModePickerMenuItem())
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(makeVolumeMenuItem())
+        menu.addItem(ambientTopSeparatorItem)
         menu.addItem(makeSliderMenuItem())
         menu.addItem(makeFocusOnVoiceMenuItem())
-        menu.addItem(bottomSeparatorItem)
+        menu.addItem(ambientBottomSeparatorItem)
+        menu.addItem(makeVolumeMenuItem())
+        menu.addItem(volumeSeparatorItem)
         menu.addItem(NSMenuItem(title: "Quit Borea", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
@@ -83,14 +87,14 @@ final class MenuController: NSObject {
     private func makeVolumeMenuItem() -> NSMenuItem {
         volumeLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         volumeLabel.textColor = .secondaryLabelColor
-        volumeLabel.frame = NSRect(x: 16, y: 30, width: 190, height: 18)
+        volumeLabel.frame = NSRect(x: 16, y: 27, width: 190, height: 18)
 
         volumeValueLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         volumeValueLabel.textColor = .secondaryLabelColor
         volumeValueLabel.alignment = .right
-        volumeValueLabel.frame = NSRect(x: 250, y: 30, width: 60, height: 18)
+        volumeValueLabel.frame = NSRect(x: 250, y: 27, width: 60, height: 18)
 
-        volumeSlider.frame = NSRect(x: 16, y: 3, width: 298, height: 24)
+        volumeSlider.frame = NSRect(x: 16, y: 4, width: 298, height: 24)
         volumeSlider.target = self
         volumeSlider.numberOfTickMarks = 11
         volumeSlider.allowsTickMarkValuesOnly = false
@@ -126,19 +130,15 @@ final class MenuController: NSObject {
     }
 
     private func makeFocusOnVoiceMenuItem() -> NSMenuItem {
-        let item = NSMenuItem()
-        item.view = focusOnVoiceView
-        return item
+        focusOnVoiceItemView.view = focusOnVoiceView
+        return focusOnVoiceItemView
     }
 
     private func refreshMenu() {
         let connected = client.connectionState == .connected
         let busy = client.connectionState == .connecting
 
-        statusHeaderView.isConnected = connected
-        statusHeaderView.batteryReport = client.batteryReport
-        connectionItem.title = connected || busy ? "Disconnect" : "Connect"
-        connectionItem.isEnabled = !busy
+        statusHeaderView.update(isConnected: connected, isBusy: busy, batteryReport: client.batteryReport)
         let volume = VolumeController.currentVolume()
         volumeSlider.integerValue = volume
         volumeValueLabel.stringValue = "\(volume)"
@@ -146,8 +146,11 @@ final class MenuController: NSObject {
         modePickerView.selectedMode = client.mode
         modePickerView.isSwitching = client.isSwitchingMode
         let ambientVisible = client.mode?.isAmbient ?? false
+        ambientTopSeparatorItem.isHidden = !ambientVisible
         ambientLevelItem.isHidden = !ambientVisible
-        bottomSeparatorItem.isHidden = false
+        focusOnVoiceItemView.isHidden = !ambientVisible
+        ambientBottomSeparatorItem.isHidden = !ambientVisible
+        volumeSeparatorItem.isHidden = false
         ambientSlider.isEnabled = connected
         focusOnVoiceView.isControlEnabled = connected && ambientVisible
         focusOnVoiceView.isOn = client.focusOnVoice
@@ -183,66 +186,101 @@ final class MenuController: NSObject {
 }
 
 private final class StatusHeaderView: NSView {
-    var isConnected = false {
-        didSet { needsDisplay = true }
-    }
+    var onToggle: (() -> Void)?
 
-    var batteryReport: BatteryReport? {
-        didSet { needsDisplay = true }
-    }
+    private let titleLabel = NSTextField(labelWithString: "Borea")
+    private let detailLabel = NSTextField(labelWithString: "Disconnected")
+    private let batteryIconView = NSImageView(frame: NSRect(x: 92, y: 27, width: 15, height: 13))
+    private let batteryLabel = NSTextField(labelWithString: "")
+    private let toggle = NSSwitch()
 
     override init(frame frameRect: NSRect) {
-        super.init(frame: NSRect(x: 0, y: 0, width: 330, height: 28))
-        wantsLayer = true
+        super.init(frame: NSRect(x: 0, y: 0, width: 330, height: 48))
+        setup()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        wantsLayer = true
+        setup()
     }
 
     override var isFlipped: Bool { true }
 
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
+    private func setup() {
+        wantsLayer = true
 
-        let headerColor = NSColor.secondaryLabelColor
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: headerColor
-        ]
-        NSAttributedString(string: "WH-1000XM4", attributes: attributes)
-            .draw(at: NSPoint(x: 16, y: 7))
+        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.textColor = .labelColor
+        titleLabel.frame = NSRect(x: 16, y: 7, width: 200, height: 18)
+        addSubview(titleLabel)
 
-        guard isConnected, let batteryReport else { return }
+        detailLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        detailLabel.textColor = .secondaryLabelColor
+        detailLabel.frame = NSRect(x: 16, y: 26, width: 78, height: 17)
+        addSubview(detailLabel)
 
-        let batteryText = "\(batteryReport.percentage)%"
-        let textAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: headerColor
-        ]
-        let attributedBattery = NSAttributedString(string: batteryText, attributes: textAttributes)
-        let textSize = attributedBattery.size()
-        let textX = CGFloat(310) - textSize.width
-        attributedBattery.draw(at: NSPoint(x: textX, y: 7))
+        batteryIconView.imageScaling = .scaleProportionallyDown
+        batteryIconView.contentTintColor = .secondaryLabelColor
+        batteryIconView.isHidden = true
+        addSubview(batteryIconView)
 
-        let iconRect = NSRect(x: textX - 23, y: 7, width: 18, height: 14)
-        drawBatteryIcon(in: iconRect, percentage: batteryReport.percentage, color: headerColor)
+        batteryLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+        batteryLabel.textColor = .secondaryLabelColor
+        batteryLabel.frame = NSRect(x: 110, y: 26, width: 54, height: 17)
+        batteryLabel.isHidden = true
+        addSubview(batteryLabel)
+
+        toggle.frame = NSRect(x: 252, y: 8, width: 58, height: 32)
+        toggle.target = self
+        toggle.action = #selector(toggleChanged)
+        addSubview(toggle)
     }
 
-    private func drawBatteryIcon(in rect: NSRect, percentage: Int, color: NSColor) {
-        let body = NSRect(x: rect.minX, y: rect.minY + 2, width: rect.width - 3, height: rect.height - 4)
-        let terminal = NSRect(x: body.maxX + 1, y: body.midY - 2, width: 2, height: 4)
-        let bodyPath = NSBezierPath(roundedRect: body, xRadius: 2, yRadius: 2)
-        color.withAlphaComponent(0.8).setStroke()
-        bodyPath.lineWidth = 1.4
-        bodyPath.stroke()
-        NSBezierPath(roundedRect: terminal, xRadius: 1, yRadius: 1).fill()
+    func update(isConnected: Bool, isBusy: Bool, batteryReport: BatteryReport?) {
+        titleLabel.stringValue = isConnected ? "WH-1000XM4" : "Borea"
+        if isBusy {
+            detailLabel.stringValue = "Connecting..."
+            detailLabel.frame.size.width = 220
+            batteryIconView.isHidden = true
+            batteryLabel.isHidden = true
+        } else if isConnected {
+            detailLabel.stringValue = "Connected"
+            detailLabel.frame.size.width = 78
+            if let batteryReport {
+                batteryIconView.image = NSImage(systemSymbolName: batterySymbolName(for: batteryReport.percentage), accessibilityDescription: "Battery")
+                batteryIconView.isHidden = false
+                batteryLabel.stringValue = "\(batteryReport.percentage)%"
+                batteryLabel.isHidden = false
+            } else {
+                batteryIconView.isHidden = true
+                batteryLabel.isHidden = true
+            }
+        } else {
+            detailLabel.stringValue = "Disconnected"
+            detailLabel.frame.size.width = 220
+            batteryIconView.isHidden = true
+            batteryLabel.isHidden = true
+        }
 
-        let fillWidth = max(1, (body.width - 4) * CGFloat(max(0, min(100, percentage))) / 100)
-        let fillRect = NSRect(x: body.minX + 2, y: body.minY + 2, width: fillWidth, height: body.height - 4)
-        color.withAlphaComponent(0.8).setFill()
-        NSBezierPath(roundedRect: fillRect, xRadius: 1, yRadius: 1).fill()
+        toggle.isEnabled = !isBusy
+        toggle.state = isConnected || isBusy ? .on : .off
+    }
+
+    @objc private func toggleChanged() {
+        onToggle?()
+    }
+
+    private func batterySymbolName(for percentage: Int) -> String {
+        switch percentage {
+        case 75...100:
+            return "battery.100"
+        case 40..<75:
+            return "battery.75"
+        case 15..<40:
+            return "battery.25"
+        default:
+            return "battery.0"
+        }
     }
 }
 
