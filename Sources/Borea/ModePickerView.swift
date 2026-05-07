@@ -132,7 +132,7 @@ final class ModePickerView: NSView {
                 path.stroke()
             }
         } else if hovered {
-            NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+            NSColor.white.withAlphaComponent(0.10).setFill()
             path.fill()
         }
 
