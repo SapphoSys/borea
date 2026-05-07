@@ -30,7 +30,7 @@ final class ModePickerView: NSView {
     private var hoveredIndex: Int?
 
     override init(frame frameRect: NSRect) {
-        super.init(frame: NSRect(x: 0, y: 0, width: 330, height: 64))
+        super.init(frame: NSRect(x: 0, y: 0, width: 330, height: 70))
         setup()
     }
 
