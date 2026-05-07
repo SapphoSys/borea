@@ -13,7 +13,6 @@ final class MenuController: NSObject {
     private let ambientBottomSeparatorItem = NSMenuItem.separator()
     private let volumeSeparatorItem = NSMenuItem.separator()
     private let ambientLevelItem = NSMenuItem()
-    private let focusOnVoiceItemView = NSMenuItem()
     private let volumeSlider = NSSlider(value: 50, minValue: 0, maxValue: 100, target: nil, action: #selector(volumeChanged(_:)))
     private let volumeLabel = NSTextField(labelWithString: "Volume")
     private let volumeValueLabel = NSTextField(labelWithString: "50")
@@ -22,7 +21,6 @@ final class MenuController: NSObject {
     private let levelLabel = NSTextField(labelWithString: "Ambient Level")
     private let levelValueLabel = NSTextField(labelWithString: "10")
     private let ambientLevelView = NSView(frame: NSRect(x: 0, y: 0, width: 330, height: 54))
-    private let focusOnVoiceView = FocusOnVoiceMenuView()
 
     init(client: SonyBluetoothClient) {
         self.client = client
@@ -56,16 +54,15 @@ final class MenuController: NSObject {
         statusHeaderView.onToggle = { [weak self] in
             self?.toggleConnection()
         }
+        focusOnVoiceItem.target = self
         modePickerView.delegate = self
-        focusOnVoiceView.target = self
-        focusOnVoiceView.action = #selector(toggleFocusOnVoice)
 
         menu.addItem(makeStatusHeaderMenuItem())
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeModePickerMenuItem())
         menu.addItem(ambientTopSeparatorItem)
         menu.addItem(makeSliderMenuItem())
-        menu.addItem(makeFocusOnVoiceMenuItem())
+        menu.addItem(focusOnVoiceItem)
         menu.addItem(ambientBottomSeparatorItem)
         menu.addItem(makeVolumeMenuItem())
         menu.addItem(volumeSeparatorItem)
@@ -129,11 +126,6 @@ final class MenuController: NSObject {
         return ambientLevelItem
     }
 
-    private func makeFocusOnVoiceMenuItem() -> NSMenuItem {
-        focusOnVoiceItemView.view = focusOnVoiceView
-        return focusOnVoiceItemView
-    }
-
     private func refreshMenu() {
         let connected = client.connectionState == .connected
         let busy = client.connectionState == .connecting
@@ -148,12 +140,12 @@ final class MenuController: NSObject {
         let ambientVisible = client.mode?.isAmbient ?? false
         ambientTopSeparatorItem.isHidden = false
         ambientLevelItem.isHidden = !ambientVisible
-        focusOnVoiceItemView.isHidden = !ambientVisible
+        focusOnVoiceItem.isHidden = !ambientVisible
         ambientBottomSeparatorItem.isHidden = !ambientVisible
         volumeSeparatorItem.isHidden = false
         ambientSlider.isEnabled = connected
-        focusOnVoiceView.isControlEnabled = connected && ambientVisible
-        focusOnVoiceView.isOn = client.focusOnVoice
+        focusOnVoiceItem.isEnabled = connected && ambientVisible
+        focusOnVoiceItem.state = client.focusOnVoice ? .on : .off
 
         ambientSlider.integerValue = client.ambientLevel
         levelValueLabel.stringValue = "\(client.ambientLevel)"
@@ -281,95 +273,6 @@ private final class StatusHeaderView: NSView {
         default:
             return "battery.0"
         }
-    }
-}
-
-private final class FocusOnVoiceMenuView: NSView {
-    weak var target: AnyObject?
-    var action: Selector?
-
-    var isControlEnabled = false {
-        didSet { needsDisplay = true }
-    }
-
-    var isOn = false {
-        didSet { needsDisplay = true }
-    }
-
-    private var isHovered = false {
-        didSet { needsDisplay = true }
-    }
-
-    private var trackingAreaRef: NSTrackingArea?
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: NSRect(x: 0, y: 0, width: 330, height: 22))
-        wantsLayer = true
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        wantsLayer = true
-    }
-
-    override var isFlipped: Bool { true }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingAreaRef {
-            removeTrackingArea(trackingAreaRef)
-        }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self)
-        addTrackingArea(area)
-        trackingAreaRef = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovered = true
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovered = false
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        guard isControlEnabled, let action else { return }
-        NSApp.sendAction(action, to: target, from: self)
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        let alpha: CGFloat = isControlEnabled ? 1 : 0.42
-        if isHovered && isControlEnabled {
-            let hoverRect = bounds.insetBy(dx: 8, dy: 1)
-            NSColor.controlAccentColor.withAlphaComponent(0.10).setFill()
-            NSBezierPath(roundedRect: hoverRect, xRadius: 8, yRadius: 8).fill()
-        }
-
-        let textColor = (isControlEnabled ? NSColor.labelColor : .disabledControlTextColor).withAlphaComponent(alpha)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 14, weight: .regular),
-            .foregroundColor: textColor
-        ]
-        NSAttributedString(string: "Focus on Voice", attributes: attributes)
-            .draw(at: NSPoint(x: 16, y: 2))
-
-        if isOn {
-            let checkAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-                .foregroundColor: textColor
-            ]
-            NSAttributedString(string: "On", attributes: checkAttributes)
-                .draw(at: NSPoint(x: 252, y: 2))
-        }
-
-        let shortcutAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-            .foregroundColor: NSColor.tertiaryLabelColor.withAlphaComponent(alpha)
-        ]
-        NSAttributedString(string: "⌘ V", attributes: shortcutAttributes)
-            .draw(at: NSPoint(x: 286, y: 2))
     }
 }
 
