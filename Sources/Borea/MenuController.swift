@@ -182,7 +182,7 @@ private final class StatusHeaderView: NSView {
 
     private let titleLabel = NSTextField(labelWithString: "Borea")
     private let detailLabel = NSTextField(labelWithString: "Disconnected")
-    private let batteryIconView = NSImageView(frame: NSRect(x: 92, y: 27, width: 15, height: 13))
+    private let batteryIconView = NSImageView(frame: NSRect(x: 88, y: 25, width: 22, height: 17))
     private let batteryLabel = NSTextField(labelWithString: "")
     private let toggle = NSSwitch()
 
