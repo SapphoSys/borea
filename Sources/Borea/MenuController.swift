@@ -146,7 +146,7 @@ final class MenuController: NSObject {
         modePickerView.selectedMode = client.mode
         modePickerView.isSwitching = client.isSwitchingMode
         let ambientVisible = client.mode?.isAmbient ?? false
-        ambientTopSeparatorItem.isHidden = !ambientVisible
+        ambientTopSeparatorItem.isHidden = false
         ambientLevelItem.isHidden = !ambientVisible
         focusOnVoiceItemView.isHidden = !ambientVisible
         ambientBottomSeparatorItem.isHidden = !ambientVisible
