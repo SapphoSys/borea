@@ -5,8 +5,7 @@ final class MenuController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
 
-    private let statusItemView = NSMenuItem(title: "WH-1000XM4 disconnected", action: nil, keyEquivalent: "")
-    private let batteryItem = NSMenuItem(title: "Battery: --", action: nil, keyEquivalent: "")
+    private let statusHeaderView = StatusHeaderView()
     private let connectionItem = NSMenuItem(title: "Connect", action: #selector(toggleConnection), keyEquivalent: "c")
     private let focusOnVoiceItem = NSMenuItem(title: "Focus on Voice", action: #selector(toggleFocusOnVoice), keyEquivalent: "v")
 
@@ -57,8 +56,7 @@ final class MenuController: NSObject {
         focusOnVoiceView.target = self
         focusOnVoiceView.action = #selector(toggleFocusOnVoice)
 
-        menu.addItem(statusItemView)
-        menu.addItem(batteryItem)
+        menu.addItem(makeStatusHeaderMenuItem())
         menu.addItem(connectionItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeModePickerMenuItem())
@@ -73,6 +71,12 @@ final class MenuController: NSObject {
     private func makeModePickerMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
         item.view = modePickerView
+        return item
+    }
+
+    private func makeStatusHeaderMenuItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        item.view = statusHeaderView
         return item
     }
 
@@ -131,9 +135,8 @@ final class MenuController: NSObject {
         let connected = client.connectionState == .connected
         let busy = client.connectionState == .connecting
 
-        statusItemView.title = connected ? "WH-1000XM4 connected" : "WH-1000XM4 disconnected"
-        batteryItem.title = connected ? "Battery: \(client.batteryReport?.title ?? "--")" : "Battery: --"
-        batteryItem.isHidden = !connected
+        statusHeaderView.isConnected = connected
+        statusHeaderView.batteryReport = client.batteryReport
         connectionItem.title = connected || busy ? "Disconnect" : "Connect"
         connectionItem.isEnabled = !busy
         let volume = VolumeController.currentVolume()
@@ -176,6 +179,70 @@ final class MenuController: NSObject {
         let volume = min(100, max(0, sender.integerValue))
         VolumeController.setVolume(volume)
         volumeValueLabel.stringValue = "\(volume)"
+    }
+}
+
+private final class StatusHeaderView: NSView {
+    var isConnected = false {
+        didSet { needsDisplay = true }
+    }
+
+    var batteryReport: BatteryReport? {
+        didSet { needsDisplay = true }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: NSRect(x: 0, y: 0, width: 330, height: 28))
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+    }
+
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        let headerColor = NSColor.secondaryLabelColor
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            .foregroundColor: headerColor
+        ]
+        NSAttributedString(string: "WH-1000XM4", attributes: attributes)
+            .draw(at: NSPoint(x: 16, y: 7))
+
+        guard isConnected, let batteryReport else { return }
+
+        let batteryText = "\(batteryReport.percentage)%"
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold),
+            .foregroundColor: headerColor
+        ]
+        let attributedBattery = NSAttributedString(string: batteryText, attributes: textAttributes)
+        let textSize = attributedBattery.size()
+        let textX = CGFloat(310) - textSize.width
+        attributedBattery.draw(at: NSPoint(x: textX, y: 7))
+
+        let iconRect = NSRect(x: textX - 23, y: 7, width: 18, height: 14)
+        drawBatteryIcon(in: iconRect, percentage: batteryReport.percentage, color: headerColor)
+    }
+
+    private func drawBatteryIcon(in rect: NSRect, percentage: Int, color: NSColor) {
+        let body = NSRect(x: rect.minX, y: rect.minY + 2, width: rect.width - 3, height: rect.height - 4)
+        let terminal = NSRect(x: body.maxX + 1, y: body.midY - 2, width: 2, height: 4)
+        let bodyPath = NSBezierPath(roundedRect: body, xRadius: 2, yRadius: 2)
+        color.withAlphaComponent(0.8).setStroke()
+        bodyPath.lineWidth = 1.4
+        bodyPath.stroke()
+        NSBezierPath(roundedRect: terminal, xRadius: 1, yRadius: 1).fill()
+
+        let fillWidth = max(1, (body.width - 4) * CGFloat(max(0, min(100, percentage))) / 100)
+        let fillRect = NSRect(x: body.minX + 2, y: body.minY + 2, width: fillWidth, height: body.height - 4)
+        color.withAlphaComponent(0.8).setFill()
+        NSBezierPath(roundedRect: fillRect, xRadius: 1, yRadius: 1).fill()
     }
 }
 
