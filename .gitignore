@@ -1,0 +1,25 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode / macOS
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+.DS_Store
+
+# Local release artifacts
+*.app
+*.dSYM
+*.zip
+dist/
+
+# Editor / local env
+.vscode/
+.idea/
+*.swp
+*.swo
+.env
